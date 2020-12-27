@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Dec 01, 2020 at 04:54 PM
+-- Generation Time: Dec 27, 2020 at 06:04 PM
 -- Server version: 10.3.21-MariaDB
 -- PHP Version: 7.2.29
 
@@ -71,6 +71,12 @@ FROM `Samenwerkingen`
 	LEFT JOIN `Projecten` ON `Samenwerkingen`.`Project` = `Projecten`.`ID` 
 	LEFT JOIN `Eindklanten` ON `Projecten`.`Klant` = `Eindklanten`.`ID`
     ORDER BY DatumSamenwerkingPeriode ASC$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfProjects` (IN `ProjectnumberIn` INT)  READS SQL DATA
+    SQL SECURITY INVOKER
+    COMMENT 'Sproc to get projects with number Like ...'
+SELECT DISTINCT * FROM Projecten 
+	WHERE Projectnummer LIKE CONCAT(ProjectNumberIn, '%')$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlanning` ()  READS SQL DATA
     SQL SECURITY INVOKER
@@ -357,7 +363,7 @@ CREATE TABLE `Rapportage` (
 --
 
 INSERT INTO `Rapportage` (`ID`, `Project`, `DatumRappPeriode`, `DatumInvoerRapp`, `PlanningBuitenAfwijking`, `PlanningBuitenOnwerkbaar`, `PlanningBinnenAfwijking`, `TevredenheidOpdrachtgever`, `Tevredenheid omgeving`, `Algemeen gevoel`, `VeiligheidMaandag`, `VeiligheidDinsdag`, `VeiligheidWoensdag`, `VeiligheidDonderdag`, `VeiligheidVrijdag`, `RedenAfwijkingVeiligheid`, `WerkplezierMaandag`, `WerkplezierDinsdag`, `WerkplezierWoensdag`, `WerkplezierDonderdag`, `WerkplezierVrijdag`, `RedenAfwijkingWerkplezier`, `KwaliteitMaandag`, `KwaliteitDinsdag`, `KwaliteitWoensdag`, `KwaliteitDonderdag`, `KwaliteitVrijdag`, `RedenAfwijkingKwaliteit`, `PlanningMaandag`, `PlanningDinsdag`, `PlanningWoensdag`, `PlanningDonderdag`, `PlanningVrijdag`, `RedenAfwijkingPlanning`) VALUES
-(8, 4, '2020-09-28', '2020-09-28', 2, 0, 0, 0, 3, 3, 3, 3, 3, 2, 2, NULL, 2, 2, 2, 3, 3, NULL, 3, 2, 3, 2, 3, NULL, 1, 1, 1, 1, 1, NULL),
+(8, 4, '2020-09-28', '2020-09-28', 2, 0, 0, 3, 3, 3, 3, 3, 3, 2, 2, NULL, 2, 2, 2, 3, 3, NULL, 3, 2, 3, 2, 3, NULL, 1, 1, 1, 1, 1, NULL),
 (9, 4, '2020-10-05', '2020-10-05', 1, 0, 0, 2, 2, 1, 1, 1, 1, 1, 1, NULL, 2, 2, 2, 2, 2, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 2, NULL),
 (10, 4, '2020-10-12', '2020-10-12', 1, 1, 0, 1, 2, 3, 2, 1, 2, 3, 2, NULL, 1, 2, 3, 2, 1, NULL, 2, 3, 2, 1, 2, NULL, 3, 2, 1, 2, 3, NULL),
 (11, 4, '2020-10-19', '2020-10-19', 1, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
@@ -374,7 +380,8 @@ INSERT INTO `Rapportage` (`ID`, `Project`, `DatumRappPeriode`, `DatumInvoerRapp`
 (22, 6, '2020-10-12', '2020-10-12', 5, 0, 0, 2, 3, 2, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL),
 (23, 6, '2020-10-19', '2020-10-19', 0, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL),
 (24, 6, '2020-10-26', '2020-10-26', 1, 1, 0, 2, 2, 1, 2, 3, 1, 2, 3, NULL, 1, 2, 3, 1, 2, NULL, 3, 1, 2, 3, 1, NULL, 2, 3, 1, 2, 3, NULL),
-(25, 6, '2020-11-02', '2020-11-02', 0, 0, 0, 0, 3, 2, 2, 1, 2, 1, 3, NULL, 2, 3, 1, 2, 3, NULL, 1, 2, 3, 1, 2, NULL, 3, 2, 2, 3, 1, NULL);
+(25, 6, '2020-11-02', '2020-11-02', 0, 0, 0, 2, 3, 2, 2, 1, 2, 1, 3, NULL, 2, 3, 1, 2, 3, NULL, 1, 2, 3, 1, 2, NULL, 3, 2, 2, 3, 1, NULL),
+(26, 4, '2020-11-09', '2020-12-03', 0, 1, 0, 3, 3, 3, 3, 1, 3, 3, 3, 'Steigerplank lag niet goed vast', 3, 2, 2, 2, 3, 'Onderlinge afstemming partner 1 en 2 niet goed.', 3, 3, 3, 3, 3, 'Prima', 1, 2, 3, 2, 3, 'Door onwerkbaar weer achterstand op lakken boeidelen');
 
 -- --------------------------------------------------------
 
@@ -400,13 +407,19 @@ CREATE TABLE `Samenwerkingen` (
 --
 
 INSERT INTO `Samenwerkingen` (`ID`, `Aannemer`, `TypeAannemer`, `Project`, `DatumSamenwerkingPeriode`, `DatumInvoerSamenwerking`, `NagekomenAfspraken`, `NietNagekomenAfspraken`, `RedenNietNagekomenAfspraken`, `NieuweOpleverPunten`) VALUES
-(16, 7, 'Hoofdaannemer', 4, '2020-09-28', '2020-09-28', 5, 1, 'Aanlevering cement te laat door file onderweg', 0),
-(17, 8, 'Hoofdaannemer', 5, '2020-10-05', '2020-10-05', 7, 0, 'Geen bijzonderheden', 0),
-(18, 9, 'Hoofdaannemer', 6, '2020-10-12', '2020-10-12', 0, 3, 'Alle polen niet aanwezig op het werk wegens staking', 0),
-(19, 10, 'Onderaannemer', 4, '2020-10-12', '2020-10-12', 10, 0, 'Geen bijzonderheden', 0),
-(20, 7, 'Hoofdaannemer', 4, '2020-10-26', '2020-10-26', 1, 1, 'Miscommunicatie', 0),
-(21, 7, 'Hoofdaannemer', 4, '2020-10-19', '2020-10-19', 4, 2, 'Miscommunicatie', 0),
-(22, 7, 'Hoofdaannemer', 4, '2020-10-26', '2020-10-26', 5, 0, NULL, 0);
+(16, 7, 'Hoofdaannemer', 4, '2020-09-28', '2020-09-28', 5, 1, 'Aanlevering cement te laat door file onderweg', 2),
+(17, 8, 'Hoofdaannemer', 5, '2020-10-05', '2020-10-05', 7, 0, 'Geen bijzonderheden', 1),
+(18, 9, 'Hoofdaannemer', 6, '2020-10-12', '2020-10-12', 0, 3, 'Alle polen niet aanwezig op het werk wegens staking', 5),
+(19, 10, 'Onderaannemer', 4, '2020-10-12', '2020-10-12', 10, 0, 'Geen bijzonderheden', 3),
+(20, 7, 'Hoofdaannemer', 4, '2020-10-05', '2020-10-26', 1, 1, 'Miscommunicatie', 1),
+(21, 7, 'Hoofdaannemer', 4, '2020-10-19', '2020-10-19', 4, 2, 'Miscommunicatie', 4),
+(22, 7, 'Hoofdaannemer', 4, '2020-10-26', '2020-10-26', 5, 0, NULL, 2),
+(23, 7, 'Hoofdaannemer', 4, '2020-11-09', '2020-12-03', 10, 1, NULL, 2),
+(24, 8, 'Hoofdaannemer', 4, '2020-11-09', '2020-12-03', 6, 0, NULL, 1),
+(25, 7, 'Hoofdaannemer', 4, '2020-11-02', '2020-12-03', 5, 0, NULL, 1),
+(26, 8, 'Hoofdaannemer', 4, '2020-11-02', '2020-12-03', 8, 2, NULL, 0),
+(27, 7, 'Hoofdaannemer', 4, '2020-10-12', '2020-12-03', 6, 4, NULL, 3),
+(28, 8, 'Hoofdaannemer', 4, '2020-10-26', '2020-12-03', 9, 1, NULL, 0);
 
 --
 -- Indexes for dumped tables
@@ -511,13 +524,13 @@ ALTER TABLE `Projecten`
 -- AUTO_INCREMENT for table `Rapportage`
 --
 ALTER TABLE `Rapportage`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `Samenwerkingen`
 --
 ALTER TABLE `Samenwerkingen`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- Constraints for dumped tables
