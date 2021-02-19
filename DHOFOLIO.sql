@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Dec 27, 2020 at 06:04 PM
+-- Generation Time: Feb 19, 2021 at 09:57 PM
 -- Server version: 10.3.21-MariaDB
--- PHP Version: 7.2.29
+-- PHP Version: 5.6.40
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET AUTOCOMMIT = 0;
@@ -35,10 +35,18 @@ FROM `Eindklanten`
 	LEFT JOIN `Rapportage` ON `Rapportage`.`Project` = `Projecten`.`ID`
     WHERE `Rapportage`.`DatumRappPeriode` IS NOT NULL$$
 
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetContractor` (IN `ContractorIDIn` INT)  READS SQL DATA
+    SQL SECURITY INVOKER
+    COMMENT 'Sproc to get the details of a certain contractor by contractorID'
+select * from Aannemers
+where ID = ContractorIDIn$$
+
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetKnelpunten` ()  READS SQL DATA
     SQL SECURITY INVOKER
     COMMENT 'SPROC to get data for Knelpunten per customer/project'
-SELECT `Eindklanten`.`Naam` AS "Naam klant" , `Projecten`.`Naam` AS "Naam project", `Projecten`.`Projectnummer`, `Knelpunten`.`DatumIngebracht`, `Knelpunten`.`Honkbal`, `Knelpunten`.`ActieVerantwoordelijke`, `Knelpunten`.`OmschrijvingActie`, `Knelpunten`.`DatumVerwachtOpgelost`, `Knelpunten`.`DatumWerkelijkOpgelost`
+SELECT `Eindklanten`.`Naam` AS "Naam klant" , `Projecten`.`Naam` AS "Naam project", `Projecten`.`Projectnummer`, 
+`Knelpunten`.`Omschrijving`,
+`Knelpunten`.`DatumIngebracht`, `Knelpunten`.`Honkbal`, `Knelpunten`.`ActieVerantwoordelijke`, `Knelpunten`.`OmschrijvingActie`, `Knelpunten`.`DatumVerwachtOpgelost`, `Knelpunten`.`DatumWerkelijkOpgelost`
 FROM `Eindklanten` 
 	LEFT JOIN `Projecten` ON `Projecten`.`Klant` = `Eindklanten`.`ID` 
 	LEFT JOIN `Knelpunten` ON `Knelpunten`.`Project` = `Projecten`.`ID`$$
@@ -65,18 +73,41 @@ FROM `Eindklanten`
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPANScore` ()  READS SQL DATA
     SQL SECURITY INVOKER
     COMMENT 'SPROC to get the PAN scores, sorted by week and then TypeAanneme'
-SELECT `Samenwerkingen`.`DatumSamenwerkingPeriode`, `Samenwerkingen`.`TypeAannemer`, `Aannemers`.`Naam`, `Projecten`.`Projectnummer`, `Projecten`.`Naam`, `Eindklanten`.`Naam`, `Samenwerkingen`.`NagekomenAfspraken`, `Samenwerkingen`.`NietNagekomenAfspraken`, `Samenwerkingen`.`RedenNietNagekomenAfspraken`, `Samenwerkingen`.`NieuweOpleverPunten`
+SELECT `Samenwerkingen`.`DatumSamenwerkingPeriode`, `Samenwerkingen`.`TypeAannemer`, `Aannemers`.`Naam`, `Projecten`.`Projectnummer`, `Projecten`.`Naam`, `Eindklanten`.`Naam`, `Samenwerkingen`.`NagekomenAfspraken`, `Samenwerkingen`.`NietNagekomenAfspraken`, `Samenwerkingen`.`RedenNietNagekomenAfspraken`, `Samenwerkingen`.`NieuweOpleverPunten`,
+`Samenwerkingen`.`OpenstaandeOpleverpunten`
 FROM `Samenwerkingen` 
 	LEFT JOIN `Aannemers` ON `Samenwerkingen`.`Aannemer` = `Aannemers`.`ID` 
 	LEFT JOIN `Projecten` ON `Samenwerkingen`.`Project` = `Projecten`.`ID` 
 	LEFT JOIN `Eindklanten` ON `Projecten`.`Klant` = `Eindklanten`.`ID`
     ORDER BY DatumSamenwerkingPeriode ASC$$
 
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfContractors` (IN `ContractorNameIn` VARCHAR(20))  READS SQL DATA
+    COMMENT 'Sproc to get all contractors with a name sounding like...'
+SELECT DISTINCT * FROM Aannemers 
+	WHERE Naam LIKE CONCAT('%',ContractorNameIn, '%')
+    ORDER By Naam ASC$$
+
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfProjects` (IN `ProjectnumberIn` INT)  READS SQL DATA
     SQL SECURITY INVOKER
     COMMENT 'Sproc to get projects with number Like ...'
 SELECT DISTINCT * FROM Projecten 
 	WHERE Projectnummer LIKE CONCAT(ProjectNumberIn, '%')$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getPlainListOfWeeksForAProject` (IN `projectIDIn` INT)  READS SQL DATA
+    DETERMINISTIC
+    SQL SECURITY INVOKER
+    COMMENT 'Returns all report weeks for a specific project'
+SELECT
+    `Projecten`.`ID` as ProjectID,
+    `Rapportage`.`ID`as RapportageID,
+    WEEK(`Rapportage`.`DatumRappPeriode`) as Week,
+    CONCAT(YEAR(`Rapportage`.`DatumRappPeriode`), ' - ', 'Wk ', WEEK(`Rapportage`.`DatumRappPeriode`)) as YearAndWeek
+FROM
+    `Projecten`
+LEFT JOIN `Rapportage` ON `Rapportage`.`Project` = `Projecten`.`ID`
+WHERE
+    `Projecten`.`ID` = ProjectIDIn
+ORDER BY YEAR(`Rapportage`.`DatumRappPeriode`), 		WEEK(`Rapportage`.`DatumRappPeriode`)$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlanning` ()  READS SQL DATA
     SQL SECURITY INVOKER
@@ -110,6 +141,22 @@ FROM `Projecten`
 	LEFT JOIN `Rapportage` ON `Rapportage`.`Project` = `Projecten`.`ID`
 WHERE `Rapportage`.`DatumRappPeriode` IS NOT NULL$$
 
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetSamenWerkingenForASpecificWeek` (IN `ProjectIdIn` INT, IN `WeekNbrIn` INT)  READS SQL DATA
+    SQL SECURITY INVOKER
+    COMMENT 'Sproc to get all contractors for a spec. project in a spec. wk'
+SELECT
+    `Projecten`.`ID` AS ProjectID,
+    `Samenwerkingen`.*,
+    `Aannemers`.`Naam`
+FROM
+    `Projecten`
+LEFT JOIN `Samenwerkingen` ON `Samenwerkingen`.`Project` = `Projecten`.`ID`
+LEFT JOIN `Aannemers` ON `Samenwerkingen`.`Aannemer` = `Aannemers`.`ID`
+WHERE
+    `Projecten`.`ID` = ProjectIdIn
+    AND
+    WEEK(`Samenwerkingen`.`DatumSamenwerkingPeriode`) = WeekNbrIn$$
+
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetTevredenheid` ()  READS SQL DATA
     SQL SECURITY INVOKER
     COMMENT 'SPROC to get tevredenheid figures per week per customer/project'
@@ -127,6 +174,12 @@ SELECT `Eindklanten`.`Naam`, `Projecten`.`Naam`, `Projecten`.`Projectnummer`, `R
 FROM `Eindklanten` 
 	LEFT JOIN `Projecten` ON `Projecten`.`Klant` = `Eindklanten`.`ID` 
 	LEFT JOIN `Rapportage` ON `Rapportage`.`Project` = `Projecten`.`ID`$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getWeekRappDetails` (IN `WeekRappIDIn` INT)  READS SQL DATA
+    SQL SECURITY INVOKER
+    COMMENT 'SPROC to get the details of a report for a specific projectweek'
+SELECT `Rapportage`.*
+FROM `Rapportage` WHERE ID = WeekRappIDIn$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetWerkplezier` ()  READS SQL DATA
     SQL SECURITY INVOKER
@@ -180,10 +233,12 @@ CREATE TABLE `Aannemers` (
 --
 
 INSERT INTO `Aannemers` (`ID`, `Naam`, `Adres`, `Postcode`, `Woonplaats`, `Contact`) VALUES
-(7, 'Fa. Een', 'Eenstraat 1', '1111AA', 'Eendorp', 'Eduard En'),
-(8, 'Fa. Twee', 'Tweestraat 2', '2222BB', 'Tweedorp', 'Tinus Wee'),
-(9, 'Fa. Drie', 'Driestraat', '3333CC', 'Driedorp', 'Dirk Rie'),
-(10, 'Fa. Vier', 'Vierstraat 4', '4444DD', 'Vierdorp', 'Victor Ier');
+(7, 'Fa. Installateur', 'Eenstraat 1', '1111AA', 'Eendorp', 'Eduard En'),
+(8, 'Fa. Metselaar', 'Tweestraat 2', '2222BB', 'Tweedorp', 'Tinus Wee'),
+(9, 'Fa. Timmerman', 'Driestraat', '3333CC', 'Driedorp', 'Dirk Rie'),
+(10, 'Fa. Loodgieter', 'Vierstraat 4', '4444DD', 'Vierdorp', 'Victor Ier'),
+(11, 'Fa. Dakbedekking', 'Vijfstraat 5', '5555AA', 'Vijfdorp', 'Jan vijf'),
+(12, 'Fa. Trappen', 'Zesstraat 6', '6666AA', 'Zesdorp', 'Piet Zes');
 
 -- --------------------------------------------------------
 
@@ -283,10 +338,12 @@ CREATE TABLE `Knelpunten` (
 --
 
 INSERT INTO `Knelpunten` (`ID`, `Omschrijving`, `Project`, `Honkbal`, `DatumIngebracht`, `OmschrijvingActie`, `ActieVerantwoordelijke`, `DatumVerwachtOpgelost`, `DatumWerkelijkOpgelost`) VALUES
-(2, 'Het beton wil niet harden', 4, 1, '2020-11-01', 'Beton vroeger bestellen', 'Jos Bakker', '2020-12-31', '2021-02-28'),
+(2, 'Metselaar wil definitieve keuze voor tijdig bestelling stenen', 4, 0, '2021-01-11', 'Opvragen keuze bij opdrachtgever', 'Jos Bakker', '2021-01-18', '2021-01-25'),
 (3, 'Vlechtijzer niet op tijd geleverd', 5, 0, '2020-11-25', 'Betere routebeschrijving sturen en per dag de komende wegwerkzaamheden in de buurt van het werk ophalen bij de ANWB', 'Roulant Tebeschrijving', '2020-11-30', '2021-03-31'),
 (4, 'Geen metselaars beschikbaar', 6, 0, '2020-10-01', 'Polen inhuren', 'Ron Selaar', '2020-11-27', '2021-04-30'),
-(5, 'Date null dates produces error in Klipfolio', 7, 0, '2020-11-27', 'Change query string to what Klipfolio advices', 'Frans', '2020-11-30', '2021-04-30');
+(5, 'Date null dates produces error in Klipfolio', 7, 0, '2020-11-27', 'Change query string to what Klipfolio advices', 'Frans', '2020-11-30', '2021-04-30'),
+(6, 'Extra verwarming nodig', 4, 0, '2021-01-18', 'Mogelijkheden navragen', 'Jos Bakker', '2021-01-19', '2021-01-18'),
+(7, 'Mannen zijn erg tevreden over geplaatste toiletunits. Kunnen we niet standaard toiletten plaatsen op alle projecten?', 4, 1, '2021-01-11', '', 'Jos Bakker', '2021-01-11', '2021-01-11');
 
 -- --------------------------------------------------------
 
@@ -363,25 +420,27 @@ CREATE TABLE `Rapportage` (
 --
 
 INSERT INTO `Rapportage` (`ID`, `Project`, `DatumRappPeriode`, `DatumInvoerRapp`, `PlanningBuitenAfwijking`, `PlanningBuitenOnwerkbaar`, `PlanningBinnenAfwijking`, `TevredenheidOpdrachtgever`, `Tevredenheid omgeving`, `Algemeen gevoel`, `VeiligheidMaandag`, `VeiligheidDinsdag`, `VeiligheidWoensdag`, `VeiligheidDonderdag`, `VeiligheidVrijdag`, `RedenAfwijkingVeiligheid`, `WerkplezierMaandag`, `WerkplezierDinsdag`, `WerkplezierWoensdag`, `WerkplezierDonderdag`, `WerkplezierVrijdag`, `RedenAfwijkingWerkplezier`, `KwaliteitMaandag`, `KwaliteitDinsdag`, `KwaliteitWoensdag`, `KwaliteitDonderdag`, `KwaliteitVrijdag`, `RedenAfwijkingKwaliteit`, `PlanningMaandag`, `PlanningDinsdag`, `PlanningWoensdag`, `PlanningDonderdag`, `PlanningVrijdag`, `RedenAfwijkingPlanning`) VALUES
-(8, 4, '2020-09-28', '2020-09-28', 2, 0, 0, 3, 3, 3, 3, 3, 3, 2, 2, NULL, 2, 2, 2, 3, 3, NULL, 3, 2, 3, 2, 3, NULL, 1, 1, 1, 1, 1, NULL),
-(9, 4, '2020-10-05', '2020-10-05', 1, 0, 0, 2, 2, 1, 1, 1, 1, 1, 1, NULL, 2, 2, 2, 2, 2, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 2, NULL),
-(10, 4, '2020-10-12', '2020-10-12', 1, 1, 0, 1, 2, 3, 2, 1, 2, 3, 2, NULL, 1, 2, 3, 2, 1, NULL, 2, 3, 2, 1, 2, NULL, 3, 2, 1, 2, 3, NULL),
-(11, 4, '2020-10-19', '2020-10-19', 1, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
-(12, 4, '2020-10-26', '2020-10-26', 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL),
-(13, 4, '2020-11-02', '2020-11-02', 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL),
-(14, 5, '2020-09-28', '2020-09-28', 0, 0, 0, 2, 3, 2, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL),
-(15, 5, '2020-10-05', '2020-10-05', 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL),
-(16, 5, '2020-10-12', '2020-10-12', 3, 3, 0, 3, 3, 3, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
-(17, 5, '2020-10-19', '2020-10-19', 4, 4, 4, 1, 1, 1, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL),
-(18, 5, '2020-10-26', '2020-10-26', 4, 4, 0, 2, 2, 2, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL),
-(19, 5, '2020-11-02', '2020-11-02', 5, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL, 1, 1, 1, 1, 1, NULL),
-(20, 6, '2020-09-28', '2020-09-28', 10, 0, 10, 1, 2, 1, 1, 1, 1, 1, 1, NULL, 1, 2, 2, 2, 1, NULL, 1, 1, 1, 1, 2, NULL, 2, 2, 1, 1, 1, NULL),
-(21, 6, '2020-10-05', '2020-10-05', 0, 10, 0, 3, 3, 3, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 32, 2, NULL, 2, 3, 3, 2, 2, NULL, 3, 3, 3, 3, 3, NULL),
-(22, 6, '2020-10-12', '2020-10-12', 5, 0, 0, 2, 3, 2, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL, 3, 2, 3, 2, 3, NULL, 2, 3, 2, 3, 2, NULL),
-(23, 6, '2020-10-19', '2020-10-19', 0, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL, 2, 2, 2, 2, 2, NULL),
-(24, 6, '2020-10-26', '2020-10-26', 1, 1, 0, 2, 2, 1, 2, 3, 1, 2, 3, NULL, 1, 2, 3, 1, 2, NULL, 3, 1, 2, 3, 1, NULL, 2, 3, 1, 2, 3, NULL),
-(25, 6, '2020-11-02', '2020-11-02', 0, 0, 0, 2, 3, 2, 2, 1, 2, 1, 3, NULL, 2, 3, 1, 2, 3, NULL, 1, 2, 3, 1, 2, NULL, 3, 2, 2, 3, 1, NULL),
-(26, 4, '2020-11-09', '2020-12-03', 0, 1, 0, 3, 3, 3, 3, 1, 3, 3, 3, 'Steigerplank lag niet goed vast', 3, 2, 2, 2, 3, 'Onderlinge afstemming partner 1 en 2 niet goed.', 3, 3, 3, 3, 3, 'Prima', 1, 2, 3, 2, 3, 'Door onwerkbaar weer achterstand op lakken boeidelen');
+(8, 4, '2021-01-04', '2021-02-07', 0, 0, 0, 3, 3, 5, 3, 3, 3, 2, 2, 'Helmen worden niet correct gedragen', 3, 3, 3, 3, 3, '', 1, 1, 1, 2, 2, 'Installateur heeft gewerkt met verkeerde tekening', 3, 3, 3, 3, 3, ''),
+(9, 4, '2021-01-11', '2021-02-07', 1, 1, 0, 3, 2, 5, 3, 3, 3, 3, 3, 'Helmen werden deze week goed gedragen', 3, 2, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 2, 2, 'Wegens regen achterstand opgelopen'),
+(10, 4, '2021-01-18', '2021-02-07', 1, 1, 0, 3, 2, 4, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 2, 'Veel onduidelijkheden tekening', 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
+(11, 4, '2021-01-25', '2021-02-07', 3, 1, 0, 2, 3, 4, 1, 2, 2, 3, 3, 'Steiger niet goed geplaatst', 2, 2, 2, 2, 2, NULL, 3, 3, 3, 3, 3, NULL, 2, 3, 3, 3, 3, 'Betonplaten niet geleverd, hierdoor twee dagen stilstand'),
+(12, 4, '2021-02-01', '2021-02-07', 4, 2, 0, 3, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 2, 2, 2, 'Elektriciteit viel steeds uit', 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
+(13, 4, '2021-02-08', '2021-02-07', 4, 2, 1, 1, 3, 3, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 1, 1, NULL, 1, 2, 2, 1, 1, 'Afkeuring beton door opdrachtgever', 3, 3, 1, 1, 1, 'Door afkeuring beton, werkzaamheden opnieuw moeten uitvoeren. '),
+(14, 5, '2021-01-04', '2021-01-04', 0, 0, 0, 3, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, 'Net opgestart alles loopt prima'),
+(15, 5, '2021-01-11', '2021-01-11', 1, 1, 0, 3, 2, 5, 3, 3, 2, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 2, 1, 1, 1, 'Partner x kon afspraken niet nakomen'),
+(16, 5, '2021-01-18', '2021-01-18', 1, 1, 0, 3, 3, 4, 1, 1, 1, 1, 1, 'Door harde wind steiger instabiel', 3, 3, 2, 2, 2, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
+(17, 5, '2021-01-25', '2021-01-25', 3, 1, 4, 2, 2, 2, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 2, 2, 2, 1, 'Opdrachtgever heeft oplevering afgekeurd', 3, 3, 3, 3, 3, NULL),
+(18, 5, '2021-02-01', '2021-02-01', 4, 3, 0, 3, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 2, 3, 2, 2, '', 3, 3, 3, 2, 2, 'Problemen met nat weer i.c.m. schilderen'),
+(19, 5, '2021-02-08', '2021-02-08', 4, 3, 0, 2, 3, 4, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 1, 'Weersomstandigheden zitten tegen'),
+(20, 6, '2021-01-04', '2021-01-04', 0, 0, 0, 3, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
+(21, 6, '2021-01-11', '2021-01-11', 0, 0, 0, 2, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 2, 2, 2, NULL, 3, 3, 3, 2, 2, NULL, 3, 3, 3, 3, 3, NULL),
+(22, 6, '2021-01-18', '2021-01-18', 1, 0, 0, 3, 3, 4, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 3, NULL, 3, 3, 3, 3, 2, NULL),
+(23, 6, '2021-01-25', '2021-01-25', 1, 2, 0, 3, 2, 5, 3, 3, 2, 2, 2, 'Gevaarlijke situatie voor bewoners door hijsbeweging', 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL),
+(24, 6, '2021-02-01', '2021-02-01', 3, 1, 0, 2, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 1, 1, 1, 'Door ziekte grote achterstand opgelopen'),
+(25, 6, '2021-02-08', '2021-02-08', 3, 0, 0, 5, 3, 4, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 2, NULL),
+(26, 4, '2021-02-15', '2021-02-07', 5, 3, 0, 3, 3, 5, 3, 3, 3, 2, 2, 'Losse steigerplanken', 3, 3, 3, 3, 3, '', 3, 3, 3, 3, 3, 'Nieuw beton goedgekeurd door opdrachtgever. Dank aan extra inspanningen partner X', 2, 2, 2, 2, 2, 'Lopen wel in maar zijn er nog niet'),
+(27, 5, '2021-02-15', '2021-02-15', 3, 3, 0, 2, 3, 4, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 3, 3, 3, 3, ''),
+(28, 6, '2021-02-15', '2021-02-15', 3, 0, 0, 5, 3, 5, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 3, 3, 3, 3, 3, NULL, 2, 2, 2, 2, 2, NULL);
 
 -- --------------------------------------------------------
 
@@ -399,27 +458,79 @@ CREATE TABLE `Samenwerkingen` (
   `NagekomenAfspraken` int(11) NOT NULL DEFAULT 0 COMMENT 'Aantal afspraken welke wel nagekomen zijn',
   `NietNagekomenAfspraken` int(11) NOT NULL DEFAULT 0 COMMENT 'Aantal afspraken welke niet nagekomen zijn',
   `RedenNietNagekomenAfspraken` varchar(240) DEFAULT NULL COMMENT 'Globale reden van de afwijking(en)',
-  `NieuweOpleverPunten` int(11) NOT NULL
+  `NieuweOpleverPunten` int(11) NOT NULL,
+  `OpenstaandeOpleverpunten` int(3) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
 -- Dumping data for table `Samenwerkingen`
 --
 
-INSERT INTO `Samenwerkingen` (`ID`, `Aannemer`, `TypeAannemer`, `Project`, `DatumSamenwerkingPeriode`, `DatumInvoerSamenwerking`, `NagekomenAfspraken`, `NietNagekomenAfspraken`, `RedenNietNagekomenAfspraken`, `NieuweOpleverPunten`) VALUES
-(16, 7, 'Hoofdaannemer', 4, '2020-09-28', '2020-09-28', 5, 1, 'Aanlevering cement te laat door file onderweg', 2),
-(17, 8, 'Hoofdaannemer', 5, '2020-10-05', '2020-10-05', 7, 0, 'Geen bijzonderheden', 1),
-(18, 9, 'Hoofdaannemer', 6, '2020-10-12', '2020-10-12', 0, 3, 'Alle polen niet aanwezig op het werk wegens staking', 5),
-(19, 10, 'Onderaannemer', 4, '2020-10-12', '2020-10-12', 10, 0, 'Geen bijzonderheden', 3),
-(20, 7, 'Hoofdaannemer', 4, '2020-10-05', '2020-10-26', 1, 1, 'Miscommunicatie', 1),
-(21, 7, 'Hoofdaannemer', 4, '2020-10-19', '2020-10-19', 4, 2, 'Miscommunicatie', 4),
-(22, 7, 'Hoofdaannemer', 4, '2020-10-26', '2020-10-26', 5, 0, NULL, 2),
-(23, 7, 'Hoofdaannemer', 4, '2020-11-09', '2020-12-03', 10, 1, NULL, 2),
-(24, 8, 'Hoofdaannemer', 4, '2020-11-09', '2020-12-03', 6, 0, NULL, 1),
-(25, 7, 'Hoofdaannemer', 4, '2020-11-02', '2020-12-03', 5, 0, NULL, 1),
-(26, 8, 'Hoofdaannemer', 4, '2020-11-02', '2020-12-03', 8, 2, NULL, 0),
-(27, 7, 'Hoofdaannemer', 4, '2020-10-12', '2020-12-03', 6, 4, NULL, 3),
-(28, 8, 'Hoofdaannemer', 4, '2020-10-26', '2020-12-03', 9, 1, NULL, 0);
+INSERT INTO `Samenwerkingen` (`ID`, `Aannemer`, `TypeAannemer`, `Project`, `DatumSamenwerkingPeriode`, `DatumInvoerSamenwerking`, `NagekomenAfspraken`, `NietNagekomenAfspraken`, `RedenNietNagekomenAfspraken`, `NieuweOpleverPunten`, `OpenstaandeOpleverpunten`) VALUES
+(18, 9, 'Hoofdaannemer', 6, '2021-01-04', '2021-01-04', 10, 0, '', 2, NULL),
+(19, 8, 'Onderaannemer', 4, '2021-01-04', '2021-01-04', 10, 0, 'Geen bijzonderheden', 3, 3),
+(22, 7, 'Hoofdaannemer', 4, '2021-01-18', '2021-01-18', 10, 0, NULL, 5, 0),
+(23, 7, 'Hoofdaannemer', 4, '2021-01-11', '2021-01-11', 10, 8, NULL, 4, 1),
+(24, 7, 'Hoofdaannemer', 4, '2021-01-04', '2021-01-04', 10, 6, NULL, 2, 3),
+(25, 7, 'Hoofdaannemer', 4, '2021-02-01', '2021-02-01', 10, 8, NULL, 5, 1),
+(26, 7, 'Hoofdaannemer', 4, '2021-01-25', '2020-12-03', 10, 0, NULL, 0, 8),
+(28, 7, 'Hoofdaannemer', 4, '2021-02-08', '2021-02-08', 9, 4, NULL, 0, NULL),
+(29, 8, 'Onderaannemer', 4, '2021-01-11', '2021-01-11', 10, 2, '', 2, NULL),
+(30, 8, 'Onderaannemer', 4, '2021-01-18', '2021-01-18', 10, 1, '', 6, NULL),
+(31, 8, 'Onderaannemer', 4, '2021-01-25', '2021-01-25', 10, 0, '', 3, NULL),
+(32, 8, 'Onderaannemer', 4, '2021-02-01', '2021-02-01', 10, 0, '', 0, 4),
+(33, 8, 'Onderaannemer', 4, '2021-02-08', '2021-02-08', 10, 2, '', 1, 0),
+(34, 9, 'Onderaannemer', 4, '2021-01-04', '2021-01-04', 10, 2, '', 0, 2),
+(35, 9, 'Onderaannemer', 4, '2021-01-11', '2021-01-11', 10, 0, '', 3, 3),
+(36, 9, 'Onderaannemer', 4, '2021-01-18', '2021-01-18', 10, 1, '', 0, 0),
+(37, 9, 'Onderaannemer', 4, '2021-01-25', '2021-01-25', 10, 0, '', 0, 7),
+(38, 9, 'Onderaannemer', 4, '2021-02-01', '2021-02-01', 10, 0, '', 0, 4),
+(39, 9, 'Onderaannemer', 4, '2021-02-08', '2021-02-08', 11, 0, '', 4, 3),
+(40, 9, 'Onderaannemer', 4, '2021-02-15', '2021-02-15', 11, 0, '', 4, 6),
+(41, 8, 'Onderaannemer', 4, '2021-02-15', '2021-02-15', 10, 1, '', 4, 2),
+(42, 7, 'Onderaannemer', 4, '2021-02-15', '2021-02-15', 11, 3, '', 4, 8),
+(43, 7, 'Hoofdaannemer', 6, '2021-01-04', '2021-01-04', 10, 5, '', 2, NULL),
+(44, 8, 'Hoofdaannemer', 6, '2021-01-04', '2021-01-04', 10, 0, '', 2, NULL),
+(45, 9, 'Hoofdaannemer', 6, '2021-01-11', '2021-01-11', 10, 5, '', 2, NULL),
+(46, 8, 'Hoofdaannemer', 6, '2021-01-11', '2021-01-11', 10, 0, '', 2, NULL),
+(47, 7, 'Hoofdaannemer', 6, '2021-01-11', '2021-01-11', 10, 2, '', 2, NULL),
+(48, 7, 'Hoofdaannemer', 6, '2021-01-18', '2021-01-18', 10, 0, '', 2, NULL),
+(49, 8, 'Hoofdaannemer', 6, '2021-01-18', '2021-01-18', 10, 0, '', 2, NULL),
+(50, 9, 'Hoofdaannemer', 6, '2021-01-18', '2021-01-18', 10, 8, '', 2, NULL),
+(51, 9, 'Hoofdaannemer', 6, '2021-01-25', '2021-01-25', 10, 4, '', 2, NULL),
+(52, 9, 'Hoofdaannemer', 6, '2021-02-01', '2021-02-01', 10, 0, '', 2, NULL),
+(53, 9, 'Hoofdaannemer', 6, '2021-02-08', '2021-02-08', 10, 0, '', 2, NULL),
+(54, 9, 'Hoofdaannemer', 6, '2021-02-15', '2021-02-15', 10, 0, '', 2, NULL),
+(55, 8, 'Hoofdaannemer', 6, '2021-01-25', '2021-01-25', 10, 0, '', 2, NULL),
+(56, 8, 'Hoofdaannemer', 6, '2021-02-01', '2021-01-04', 10, 0, '', 2, NULL),
+(57, 8, 'Hoofdaannemer', 6, '2021-02-08', '2021-02-08', 10, 0, '', 2, NULL),
+(58, 8, 'Hoofdaannemer', 6, '2021-02-15', '2021-02-15', 10, 0, '', 2, NULL),
+(59, 7, 'Hoofdaannemer', 6, '2021-01-25', '2021-01-25', 10, 3, '', 2, NULL),
+(60, 7, 'Hoofdaannemer', 6, '2021-02-01', '2021-02-01', 10, 6, '', 2, NULL),
+(61, 7, 'Hoofdaannemer', 6, '2021-02-08', '2021-02-08', 10, 10, '', 2, NULL),
+(62, 7, 'Hoofdaannemer', 6, '2021-02-15', '2021-02-15', 10, 0, '', 2, NULL),
+(63, 9, 'Hoofdaannemer', 5, '2021-01-04', '2021-01-04', 10, 8, '', 2, NULL),
+(64, 9, 'Hoofdaannemer', 5, '2021-01-11', '2021-01-11', 10, 5, '', 2, NULL),
+(65, 9, 'Hoofdaannemer', 5, '2021-01-18', '2021-01-18', 10, 3, '', 2, NULL),
+(66, 9, 'Hoofdaannemer', 5, '2021-01-25', '2021-01-25', 10, 10, '', 2, NULL),
+(67, 9, 'Hoofdaannemer', 5, '2021-02-01', '2021-02-01', 10, 7, '', 2, NULL),
+(68, 9, 'Hoofdaannemer', 5, '2021-02-08', '2021-02-08', 10, 4, '', 2, NULL),
+(69, 9, 'Hoofdaannemer', 5, '2021-02-15', '2021-02-15', 10, 4, '', 2, NULL),
+(70, 8, 'Hoofdaannemer', 5, '2021-01-04', '2021-01-04', 10, 0, '', 2, NULL),
+(71, 8, 'Hoofdaannemer', 5, '2021-01-11', '2021-01-11', 10, 0, '', 2, NULL),
+(72, 8, 'Hoofdaannemer', 5, '2021-01-18', '2021-01-18', 10, 0, '', 2, NULL),
+(73, 8, 'Hoofdaannemer', 5, '2021-01-25', '2021-01-25', 10, 1, '', 2, NULL),
+(74, 8, 'Hoofdaannemer', 5, '2021-02-01', '2021-02-01', 10, 1, '', 2, NULL),
+(75, 8, 'Hoofdaannemer', 5, '2021-02-08', '2021-02-08', 10, 0, '', 2, NULL),
+(76, 8, 'Hoofdaannemer', 5, '2021-02-15', '2021-02-15', 10, 0, '', 2, NULL),
+(77, 7, 'Hoofdaannemer', 5, '2021-01-04', '2021-01-04', 10, 1, '', 2, NULL),
+(78, 7, 'Hoofdaannemer', 5, '2021-01-11', '2021-01-11', 10, 1, '', 2, NULL),
+(79, 7, 'Hoofdaannemer', 5, '2021-02-08', '2021-02-08', 10, 0, '', 2, NULL),
+(80, 7, 'Hoofdaannemer', 5, '2021-01-18', '2021-01-18', 10, 0, '', 2, NULL),
+(81, 7, 'Hoofdaannemer', 5, '2021-01-25', '2021-01-25', 10, 0, '', 2, NULL),
+(82, 7, 'Hoofdaannemer', 5, '2021-02-01', '2021-02-01', 10, 2, '', 2, NULL),
+(83, 7, 'Hoofdaannemer', 5, '2021-02-01', '2021-02-01', 10, 0, '', 2, NULL),
+(84, 7, 'Hoofdaannemer', 5, '2021-02-15', '2021-02-15', 10, 2, '', 2, NULL);
 
 --
 -- Indexes for dumped tables
@@ -488,7 +599,7 @@ ALTER TABLE `Samenwerkingen`
 -- AUTO_INCREMENT for table `Aannemers`
 --
 ALTER TABLE `Aannemers`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `Acties`
@@ -512,7 +623,7 @@ ALTER TABLE `Gebruikers`
 -- AUTO_INCREMENT for table `Knelpunten`
 --
 ALTER TABLE `Knelpunten`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `Projecten`
@@ -524,13 +635,13 @@ ALTER TABLE `Projecten`
 -- AUTO_INCREMENT for table `Rapportage`
 --
 ALTER TABLE `Rapportage`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `Samenwerkingen`
 --
 ALTER TABLE `Samenwerkingen`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
 
 --
 -- Constraints for dumped tables
