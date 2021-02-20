@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Feb 19, 2021 at 09:57 PM
+-- Generation Time: Feb 21, 2021 at 12:36 AM
 -- Server version: 10.3.21-MariaDB
 -- PHP Version: 5.6.40
 
@@ -26,6 +26,36 @@ DELIMITER $$
 --
 -- Procedures
 --
+CREATE DEFINER=`root`@`pc-frans` PROCEDURE `AddNewContractor` (IN `NaamIn` VARCHAR(30), `AdresIn` VARCHAR(30), `PostcodeIn` VARCHAR(6), `WoonplaatsIn` VARCHAR(30), `ContactIn` VARCHAR(90))  SQL SECURITY INVOKER
+    COMMENT 'SQL Sproc to add new contracttors'
+BEGIN
+	INSERT INTO Aannemers
+		SET
+			DHOFOLIO.Aannemers.Naam = NaamIn,
+            DHOFOLIO.Aannemers.Adres = AdresIn,
+            DHOFOLIO.Aannemers.Postcode= PostcodeIn,
+            DHOFOLIO.Aannemers.Woonplaats = WoonplaatsIn,
+            DHOFOLIO.Aannemers.Contact = ContactIn;
+            
+SELECT * FROM Aannemers WHERE ID = LAST_INSERT_ID();
+
+END$$
+
+CREATE DEFINER=`root`@`pc-frans` PROCEDURE `AddNewContractor2` (IN `ParmsIn` BLOB)  SQL SECURITY INVOKER
+    COMMENT 'SQL Sproc to add new contracttors'
+BEGIN
+	INSERT INTO Aannemers
+		SET
+			DHOFOLIO.Aannemers.Naam = JSON_EXTRACT(ParmsIn, '$.Naam'),
+            DHOFOLIO.Aannemers.Adres = JSON_EXTRACT(ParmsIn, '$.Adres'),
+            DHOFOLIO.Aannemers.Postcode= JSON_EXTRACT(ParmsIn, '$.Postcode'),
+            DHOFOLIO.Aannemers.Woonplaats = JSON_EXTRACT(ParmsIn, '$.Woonplaats'),
+            DHOFOLIO.Aannemers.Contact = JSON_EXTRACT(ParmsIn, '$.Contact');
+            
+SELECT * FROM Aannemers WHERE ID = LAST_INSERT_ID();
+
+END$$
+
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetAfwijkingen` ()  READS SQL DATA
     SQL SECURITY INVOKER
     COMMENT 'SPROC to get deviations with regard to the planning'
@@ -238,7 +268,15 @@ INSERT INTO `Aannemers` (`ID`, `Naam`, `Adres`, `Postcode`, `Woonplaats`, `Conta
 (9, 'Fa. Timmerman', 'Driestraat', '3333CC', 'Driedorp', 'Dirk Rie'),
 (10, 'Fa. Loodgieter', 'Vierstraat 4', '4444DD', 'Vierdorp', 'Victor Ier'),
 (11, 'Fa. Dakbedekking', 'Vijfstraat 5', '5555AA', 'Vijfdorp', 'Jan vijf'),
-(12, 'Fa. Trappen', 'Zesstraat 6', '6666AA', 'Zesdorp', 'Piet Zes');
+(12, 'Fa. Trappen', 'Zesstraat 6', '6666AA', 'Zesdorp', 'Piet Zes'),
+(13, 'Hecmar', 'Kwelder 15', '1234AB', 'Hoek van Holland', 'Frans Dekkers'),
+(14, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
+(15, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
+(16, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
+(17, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
+(18, 'null', 'null', 'null', 'null', 'null'),
+(19, '\"T13\"', '\"T13\"', '\"T13\"', '\"T13\"', '\"T13\"'),
+(20, '\"T14\"', '\"T14\"', '\"T14\"', '\"T14\"', '\"T14\"');
 
 -- --------------------------------------------------------
 
@@ -599,7 +637,7 @@ ALTER TABLE `Samenwerkingen`
 -- AUTO_INCREMENT for table `Aannemers`
 --
 ALTER TABLE `Aannemers`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `Acties`
