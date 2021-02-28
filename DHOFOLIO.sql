@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Feb 21, 2021 at 12:36 AM
+-- Generation Time: Feb 28, 2021 at 11:13 AM
 -- Server version: 10.3.21-MariaDB
 -- PHP Version: 5.6.40
 
@@ -26,35 +26,48 @@ DELIMITER $$
 --
 -- Procedures
 --
-CREATE DEFINER=`root`@`pc-frans` PROCEDURE `AddNewContractor` (IN `NaamIn` VARCHAR(30), `AdresIn` VARCHAR(30), `PostcodeIn` VARCHAR(6), `WoonplaatsIn` VARCHAR(30), `ContactIn` VARCHAR(90))  SQL SECURITY INVOKER
+CREATE DEFINER=`root`@`pc-frans` PROCEDURE `AddNewContractor2` (IN `ParmsIn` BLOB)  MODIFIES SQL DATA
+    SQL SECURITY INVOKER
     COMMENT 'SQL Sproc to add new contracttors'
 BEGIN
 	INSERT INTO Aannemers
 		SET
-			DHOFOLIO.Aannemers.Naam = NaamIn,
-            DHOFOLIO.Aannemers.Adres = AdresIn,
-            DHOFOLIO.Aannemers.Postcode= PostcodeIn,
-            DHOFOLIO.Aannemers.Woonplaats = WoonplaatsIn,
-            DHOFOLIO.Aannemers.Contact = ContactIn;
+			DHOFOLIO.Aannemers.Naam = REPLACE(JSON_EXTRACT(ParmsIn, '$.Naam'), '"', ''),
+            DHOFOLIO.Aannemers.Adres = REPLACE(JSON_EXTRACT(ParmsIn, '$.Adres'), '"', ''),
+            DHOFOLIO.Aannemers.Postcode= REPLACE(JSON_EXTRACT(ParmsIn, '$.Postcode'), '"', ''),
+            DHOFOLIO.Aannemers.Woonplaats = REPLACE(JSON_EXTRACT(ParmsIn, '$.Woonplaats'), '"', ''),
+            DHOFOLIO.Aannemers.Contact = REPLACE(JSON_EXTRACT(ParmsIn, '$.Contact'), '"', '');
             
 SELECT * FROM Aannemers WHERE ID = LAST_INSERT_ID();
 
 END$$
 
-CREATE DEFINER=`root`@`pc-frans` PROCEDURE `AddNewContractor2` (IN `ParmsIn` BLOB)  SQL SECURITY INVOKER
-    COMMENT 'SQL Sproc to add new contracttors'
+CREATE DEFINER=`root`@`pc-frans` PROCEDURE `ChangeExistingContractor` (IN `ParmsIn` BLOB)  SQL SECURITY INVOKER
+    COMMENT 'SQL Sproc to change existing contractors'
 BEGIN
-	INSERT INTO Aannemers
+
+	UPDATE Aannemers
 		SET
-			DHOFOLIO.Aannemers.Naam = JSON_EXTRACT(ParmsIn, '$.Naam'),
-            DHOFOLIO.Aannemers.Adres = JSON_EXTRACT(ParmsIn, '$.Adres'),
-            DHOFOLIO.Aannemers.Postcode= JSON_EXTRACT(ParmsIn, '$.Postcode'),
-            DHOFOLIO.Aannemers.Woonplaats = JSON_EXTRACT(ParmsIn, '$.Woonplaats'),
-            DHOFOLIO.Aannemers.Contact = JSON_EXTRACT(ParmsIn, '$.Contact');
+			DHOFOLIO.Aannemers.Naam = REPLACE(JSON_EXTRACT(ParmsIn, '$.Naam'), '"', ''),
+            DHOFOLIO.Aannemers.Adres = REPLACE(JSON_EXTRACT(ParmsIn, '$.Adres'), '"', ''),
+            DHOFOLIO.Aannemers.Postcode= REPLACE(JSON_EXTRACT(ParmsIn, '$.Postcode'), '"', ''),
+            DHOFOLIO.Aannemers.Woonplaats = REPLACE(JSON_EXTRACT(ParmsIn, '$.Woonplaats'), '"', ''),
+            DHOFOLIO.Aannemers.Contact = REPLACE(JSON_EXTRACT(ParmsIn, '$.Contact'), '"', '')
+		WHERE DHOFOLIO.Aannemers.ID = JSON_EXTRACT(ParmsIn, '$.ID' );
             
-SELECT * FROM Aannemers WHERE ID = LAST_INSERT_ID();
+SELECT * FROM Aannemers WHERE ID = JSON_EXTRACT(ParmsIn, '$.ID');
 
 END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `DeleteExistingContractor` (IN `ContractorIdIn` INT)  MODIFIES SQL DATA
+    COMMENT 'Sproc to delete a contractor'
+DELETE FROM Aannemers 
+	WHERE ID = ContractorIdIn$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `DeleteExistingContractors` (IN `ContractorIdIn` INT)  MODIFIES SQL DATA
+    COMMENT 'Sproc to delete a contractor'
+DELETE FROM Aannemers 
+	WHERE ID = ContractorIdIn$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetAfwijkingen` ()  READS SQL DATA
     SQL SECURITY INVOKER
@@ -116,6 +129,39 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfContractors` (IN `Con
 SELECT DISTINCT * FROM Aannemers 
 	WHERE Naam LIKE CONCAT('%',ContractorNameIn, '%')
     ORDER By Naam ASC$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfContractors2` (IN `ContractorNameIn` VARCHAR(20), IN `ContractorsNotToBeIncluded` VARCHAR(100))  READS SQL DATA
+    COMMENT 'Sproc to get all contractors with a name sounding like...'
+BEGIN
+	DECLARE IndexForBlob INT DEFAULT 0;
+    DECLARE BLOBLength INT DEFAULT 0;
+    DECLARE JsonString VARCHAR(20);
+    
+    SET IndexForBlob = 0;
+    
+    SET BLOBLength = JSON_LENGTH(ContractorsNotToBeIncluded);
+   
+	CREATE TEMPORARY TABLE IF NOT EXISTS ContractorsOutOfScope (
+			RecID INT NOT NULL AUTO_INCREMENT,
+			ContractorID INT NOT NULL,
+			PRIMARY KEY (RecID));
+        
+    REPEAT
+		INSERT INTO ContractorsOutOfScope 
+			(ContractorID) VALUES (JSON_EXTRACT(ContractorsNotToBeIncluded, CONCAT("$[", IndexForBlob, "]")));
+        SET IndexForBlob = IndexForBlob + 1;    
+		UNTIL IndexForBlob = BLOBLength
+    END REPEAT;
+		
+	SELECT DISTINCT * FROM Aannemers 
+		WHERE Naam LIKE CONCAT('%',ContractorNameIn, '%')
+        AND ID NOT IN (SELECT ContractorID FROM ContractorsOutOfScope)
+		ORDER By Naam ASC;
+        
+	DROP TEMPORARY TABLE ContractorsOutOfScope;
+    
+    
+END$$
 
 CREATE DEFINER=`root`@`localhost` PROCEDURE `GetPlainListOfProjects` (IN `ProjectnumberIn` INT)  READS SQL DATA
     SQL SECURITY INVOKER
@@ -270,13 +316,7 @@ INSERT INTO `Aannemers` (`ID`, `Naam`, `Adres`, `Postcode`, `Woonplaats`, `Conta
 (11, 'Fa. Dakbedekking', 'Vijfstraat 5', '5555AA', 'Vijfdorp', 'Jan vijf'),
 (12, 'Fa. Trappen', 'Zesstraat 6', '6666AA', 'Zesdorp', 'Piet Zes'),
 (13, 'Hecmar', 'Kwelder 15', '1234AB', 'Hoek van Holland', 'Frans Dekkers'),
-(14, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
-(15, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
-(16, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
-(17, '\"Test12\"', '\"Test12\"', '\"Test\"', '\"Test12\"', '\"Test12\"'),
-(18, 'null', 'null', 'null', 'null', 'null'),
-(19, '\"T13\"', '\"T13\"', '\"T13\"', '\"T13\"', '\"T13\"'),
-(20, '\"T14\"', '\"T14\"', '\"T14\"', '\"T14\"', '\"T14\"');
+(21, '\"Nieuw\"', '\"T20\"', '\"T20\"', '\"T20\"', '\"T20\"');
 
 -- --------------------------------------------------------
 
@@ -637,7 +677,7 @@ ALTER TABLE `Samenwerkingen`
 -- AUTO_INCREMENT for table `Aannemers`
 --
 ALTER TABLE `Aannemers`
-  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `ID` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `Acties`
